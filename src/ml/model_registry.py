@@ -54,8 +54,15 @@ def get_detector():
         from PytorchWildlife.models import detection as pw_detection
 
         device = app_config.models.device
-        _detector = pw_detection.MegaDetectorV6(device=device)
-        logger.info("MegaDetector V6 loaded on %s", device)
+        _detector = pw_detection.MegaDetectorV6(
+            device=device,
+            version=app_config.models.megadetector_version,
+        )
+        logger.info(
+            "MegaDetector V6 loaded (%s) on %s",
+            app_config.models.megadetector_version,
+            device,
+        )
     return _detector
 
 

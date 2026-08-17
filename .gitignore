@@ -13,6 +13,9 @@ data/processed/**
 !data/processed/.gitkeep
 data/exports/**
 !data/exports/.gitkeep
+data/tigers/
+data/tigers.zip
+*.zip
 *.html
 .DS_Store
 .pytest_cache/

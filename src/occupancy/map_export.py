@@ -10,6 +10,11 @@ from folium import FeatureGroup
 
 from src.config import app_config
 
+# OpenStreetMap default tiles block local file:// opens (403, missing Referer).
+# CartoDB works when opening exported HTML directly in a browser.
+MAP_TILES = "CartoDB positron"
+MAP_ATTR = "&copy; OpenStreetMap contributors &copy; CARTO"
+
 
 def generate_occupancy_map(
     occupancy_data: list[dict],
@@ -22,7 +27,8 @@ def generate_occupancy_map(
     m = folium.Map(
         location=[reserve.center_lat, reserve.center_lon],
         zoom_start=11,
-        tiles="OpenStreetMap",
+        tiles=MAP_TILES,
+        attr=MAP_ATTR,
     )
 
     folium.Marker(

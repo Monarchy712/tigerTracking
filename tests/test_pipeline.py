@@ -68,3 +68,16 @@ def test_megadetector_parser():
     assert len(parsed) == 2
     assert parsed[0].category == "animal"
     assert parsed[0].bbox == (10, 20, 190, 280)
+
+
+def test_station_id_parsing(tmp_path, monkeypatch):
+    from src.pipeline.ingest import ingest_image, load_station_registry
+
+    registry = {"CAM01": (23.71, 81.025, "core")}
+    path = tmp_path / "tiger_alpha_station_CAM01_20260103_223700.jpg"
+    path.write_bytes(b"fake")
+
+    item = ingest_image(path, registry)
+    assert item.station_id == "CAM01"
+    assert item.latitude == 23.71
+    assert item.longitude == 81.025

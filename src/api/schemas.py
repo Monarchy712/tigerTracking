@@ -96,3 +96,31 @@ class PipelineRunResponse(BaseModel):
     occupancy_count: int
     alerts_raised: int
     exports: dict
+
+
+class IdentifyResponse(BaseModel):
+    success: bool
+    message: str
+    has_tiger: bool = False
+    tiger_id: int | None = None
+    tiger_code: str | None = None
+    confidence: float = 0.0
+    action: str = "none"
+    flank_path: str | None = None
+    matched_against: str | None = None
+    last_station_id: str | None = None
+    last_captured_at: datetime | None = None
+    last_latitude: float | None = None
+    last_longitude: float | None = None
+    last_zone: str | None = None
+    total_sightings: int = 0
+    detection_confidence: float = 0.0
+
+
+class CompareResponse(BaseModel):
+    same_tiger: bool
+    verdict: str
+    confidence: float
+    message: str
+    flank_a: str | None = None
+    flank_b: str | None = None

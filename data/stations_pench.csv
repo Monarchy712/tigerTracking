@@ -1,0 +1,9 @@
+station_id,latitude,longitude,zone
+PEN01,21.785,79.310,core
+PEN02,21.778,79.325,core
+PEN03,21.765,79.335,core
+PEN04,21.758,79.318,core
+PEN05,21.752,79.340,buffer
+PEN06,21.745,79.305,buffer
+PEN07,21.738,79.328,village_adjacent
+PEN08,21.792,79.345,core

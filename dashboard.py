@@ -11,22 +11,25 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.config import settings
+from src.config import settings, app_config
 from src.db.models import ImageRecord, MatchReview, get_session, init_db
 from src.db.repository import Repository
 from src.matching.catalogue import TigerCatalogue
 from src.matching.review_queue import ReviewQueue
 from src.pipeline.run import TigerTrackingPipeline
 
-st.set_page_config(page_title="Tiger Tracking", page_icon="🐯", layout="wide")
+st.set_page_config(page_title="Pench Tiger Tracking | Viksit Nagpur", page_icon="🐯", layout="wide")
 init_db()
+
+reserve = app_config.reserve
 
 
 def get_repo():
     return Repository(get_session())
 
 
-st.title("🐯 Tiger Tracking System")
+st.title("🐯 Pench Tiger Reserve — Camera Trap Intelligence")
+st.caption(f"{reserve.hackathon} · {reserve.name} · Individual ID · Occupancy · Alerts")
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Run Pipeline", "Tigers", "Review Queue", "Alerts", "Maps & Exports",
 ])

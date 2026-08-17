@@ -65,7 +65,7 @@ def generate_demo_data(output_dir: Path, num_days: int = 14):
     output_dir.mkdir(parents=True, exist_ok=True)
     base_date = datetime(2026, 1, 1)
 
-    station_csv = output_dir.parent / "stations.csv"
+    station_csv = output_dir.parent.parent / "stations.csv"
     with open(station_csv, "w") as f:
         f.write("station_id,latitude,longitude,zone\n")
         for sid, lat, lon, zone in STATIONS:

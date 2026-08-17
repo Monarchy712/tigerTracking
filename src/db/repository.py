@@ -251,5 +251,13 @@ class Repository:
             .scalar()
         )
 
+    def get_last_sighting(self, tiger_id: int) -> Sighting | None:
+        return (
+            self.session.query(Sighting)
+            .filter(Sighting.tiger_id == tiger_id)
+            .order_by(desc(Sighting.captured_at), desc(Sighting.id))
+            .first()
+        )
+
     def dump_evidence(self, data: dict) -> str:
         return json.dumps(data, default=str)

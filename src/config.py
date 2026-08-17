@@ -17,6 +17,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 class ModelsConfig(BaseModel):
     enabled: bool = True
     megadetector_threshold: float = 0.20
+    megadetector_version: str = "MDV6-yolov10-c"
     miewid_model: str = "conservationxlabs/miewid-msv3"
     device: str = "cpu"
 
@@ -48,15 +49,24 @@ class OccupancyConfig(BaseModel):
 
 
 class ReserveConfig(BaseModel):
-    name: str = "Bandhavgarh Tiger Reserve"
-    center_lat: float = 23.697
-    center_lon: float = 81.032
+    name: str = "Pench Tiger Reserve (Nagpur Region)"
+    center_lat: float = 21.771
+    center_lon: float = 79.323
+    state: str = "Maharashtra"
+    hackathon: str = "Viksit Nagpur Hackathon"
     core_boundary_file: str | None = None
     buffer_boundary_file: str | None = None
 
 
+class DemoConfig(BaseModel):
+    """Options for datasets without camera-trap metadata (e.g. CVWC2019 Amur Tiger zip)."""
+    synthetic_stations: bool = True
+    synthetic_station_seed: int = 42
+
+
 class AppConfig(BaseModel):
     models: ModelsConfig = Field(default_factory=ModelsConfig)
+    demo: DemoConfig = Field(default_factory=DemoConfig)
     blank_filter: BlankFilterConfig = Field(default_factory=BlankFilterConfig)
     matching: MatchingConfig = Field(default_factory=MatchingConfig)
     alerts: AlertsConfig = Field(default_factory=AlertsConfig)

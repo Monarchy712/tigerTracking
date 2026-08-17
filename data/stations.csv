@@ -1,0 +1,7 @@
+station_id,latitude,longitude,zone
+CAM01,23.71,81.025,core
+CAM02,23.705,81.04,core
+CAM03,23.69,81.05,core
+CAM04,23.68,81.03,buffer
+CAM05,23.675,81.015,buffer
+CAM06,23.668,81.005,village_adjacent

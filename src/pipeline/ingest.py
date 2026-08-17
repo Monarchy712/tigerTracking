@@ -74,15 +74,29 @@ def _extract_exif(path: Path) -> tuple[datetime | None, float | None, float | No
         return None, None, None
 
 
+def _normalize_station_id(raw: str | None) -> str | None:
+    """Extract canonical station id like CAM01 from noisy filename tokens."""
+    if not raw:
+        return None
+    cam_match = re.search(r"(CAM\d+)", raw, re.I)
+    if cam_match:
+        return cam_match.group(1).upper()
+    return raw.upper()
+
+
 def _parse_filename_metadata(path: Path) -> tuple[str | None, datetime | None]:
     """Parse station and timestamp from common camera-trap naming patterns."""
     name = path.stem
     station_id = None
     captured_at = None
 
-    station_match = re.search(r"(?:station|cam|st)[_-]?(\w+)", name, re.I)
+    station_match = re.search(r"(?:station|cam|st)[_-]?(CAM\d+)", name, re.I)
     if station_match:
         station_id = station_match.group(1).upper()
+    else:
+        cam_only = re.search(r"(CAM\d+)", name, re.I)
+        if cam_only:
+            station_id = cam_only.group(1).upper()
 
     ts_match = re.search(r"(\d{8})[_-]?(\d{6})?", name)
     if ts_match:
@@ -134,6 +148,9 @@ def ingest_image(path: Path, station_registry: dict | None = None) -> IngestedIm
 
     if fn_time and not captured_at:
         captured_at = fn_time
+
+    if station_id:
+        station_id = _normalize_station_id(station_id)
 
     if station_id and station_id in station_registry and (lat is None or lon is None):
         lat, lon, _ = station_registry[station_id]

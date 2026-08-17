@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from src.api.schemas import (
     AlertOut,
+    CompareResponse,
+    IdentifyResponse,
     OccupancyOut,
     PipelineRunRequest,
     PipelineRunResponse,
@@ -19,6 +21,7 @@ from src.api.schemas import (
 )
 from src.db.models import ImageRecord, MatchReview, get_session, init_db
 from src.db.repository import Repository
+from src.demo.identify_service import IdentifyService
 from src.matching.catalogue import TigerCatalogue
 from src.matching.review_queue import ReviewQueue
 from src.pipeline.run import TigerTrackingPipeline
@@ -251,3 +254,53 @@ def restore_quarantined(run_id: int):
                 restored += 1
 
     return {"restored": restored, "destination": str(raw_dir)}
+
+
+@router.post("/identify", response_model=IdentifyResponse)
+async def identify_tiger(
+    file: UploadFile = File(...),
+    record_sighting: bool = False,
+    station_registry: str | None = None,
+):
+    """Identify tiger from a single uploaded image; returns last camera sighting."""
+    repo = _get_repo()
+    service = IdentifyService(repo)
+    content = await file.read()
+    path = service.save_upload(file.filename or "upload.jpg", content)
+    registry = Path(station_registry) if station_registry else None
+    if registry and not registry.exists():
+        registry = Path("data/stations_pench.csv") if Path("data/stations_pench.csv").exists() else None
+
+    result = service.identify_file(path, registry, record_sighting=record_sighting)
+    return IdentifyResponse(
+        success=result.success,
+        message=result.message,
+        has_tiger=result.has_tiger,
+        tiger_id=result.tiger_id,
+        tiger_code=result.tiger_code,
+        confidence=result.confidence,
+        action=result.action,
+        flank_path=result.flank_path,
+        matched_against=result.matched_against,
+        last_station_id=result.last_station_id,
+        last_captured_at=result.last_captured_at,
+        last_latitude=result.last_latitude,
+        last_longitude=result.last_longitude,
+        last_zone=result.last_zone,
+        total_sightings=result.total_sightings,
+        detection_confidence=result.detection_confidence,
+    )
+
+
+@router.post("/compare", response_model=CompareResponse)
+async def compare_tigers(
+    image_a: UploadFile = File(...),
+    image_b: UploadFile = File(...),
+):
+    """Compare two images — same tiger or different."""
+    repo = _get_repo()
+    service = IdentifyService(repo)
+    path_a = service.save_upload(image_a.filename or "a.jpg", await image_a.read())
+    path_b = service.save_upload(image_b.filename or "b.jpg", await image_b.read())
+    result = service.compare_files(path_a, path_b)
+    return CompareResponse(**result)

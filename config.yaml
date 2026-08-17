@@ -1,6 +1,7 @@
 models:
   enabled: true
   megadetector_threshold: 0.20
+  megadetector_version: "MDV6-yolov10-c"
   miewid_model: "conservationxlabs/miewid-msv3"
   device: "cpu"
 
@@ -26,9 +27,14 @@ occupancy:
   min_points_for_range: 3
   overlap_threshold_pct: 10.0
 
+demo:
+  synthetic_stations: true   # assign Pench stations when images lack GPS (Amur Tiger zip)
+
 reserve:
-  name: "Bandhavgarh Tiger Reserve"
-  center_lat: 23.697
-  center_lon: 81.032
+  name: "Pench Tiger Reserve (Nagpur Region)"
+  center_lat: 21.771
+  center_lon: 79.323
+  state: "Maharashtra"
+  hackathon: "Viksit Nagpur Hackathon"
   core_boundary_file: null
   buffer_boundary_file: null

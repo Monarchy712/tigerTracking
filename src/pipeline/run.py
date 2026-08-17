@@ -15,8 +15,24 @@ from src.occupancy.home_range import compute_occupancy, compute_overlap_pct
 from src.occupancy.map_export import export_csv_report, export_geojson_bundle, generate_occupancy_map
 from src.pipeline.blank_filter import classify_blank, estimate_time_saved_sec, quarantine_blank
 from src.pipeline.detect_crop import detect_and_crop
-from src.pipeline.ingest import ingest_directory
+from src.pipeline.ingest import ingest_directory, load_station_registry
 from src.ml.model_registry import ml_available, warmup_models
+
+
+def _assign_synthetic_station(
+    path: Path,
+    registry_map: dict[str, tuple[float, float, str]],
+) -> tuple[str | None, float | None, float | None]:
+    """Spread images without metadata across reserve stations for occupancy demo."""
+    if not registry_map or not app_config.demo.synthetic_stations:
+        return None, None, None
+    import hashlib
+
+    stations = sorted(registry_map.keys())
+    digest = hashlib.md5(str(path.name).encode()).hexdigest()
+    station_id = stations[int(digest, 16) % len(stations)]
+    lat, lon, _zone = registry_map[station_id]
+    return station_id, lat, lon
 
 
 @dataclass
@@ -59,25 +75,48 @@ class TigerTrackingPipeline:
 
         ingested = ingest_directory(input_dir, station_registry, recursive)
         report.total_frames = len(ingested)
+        station_registry_map = (
+            load_station_registry(station_registry) if station_registry else {}
+        )
 
         for item in ingested:
+            station_id = item.station_id
+            latitude = item.latitude
+            longitude = item.longitude
+            if station_id and station_id in station_registry_map and (
+                latitude is None or longitude is None
+            ):
+                latitude, longitude, zone = station_registry_map[station_id]
+                self.repo.upsert_station(station_id, latitude, longitude, zone=zone)
+
+            if latitude is None or longitude is None:
+                syn_id, syn_lat, syn_lon = _assign_synthetic_station(
+                    item.path, station_registry_map
+                )
+                if syn_id and syn_lat and syn_lon:
+                    station_id = station_id or syn_id
+                    latitude = syn_lat
+                    longitude = syn_lon
+                    _lat, _lon, zone = station_registry_map[syn_id]
+                    self.repo.upsert_station(syn_id, _lat, _lon, zone=zone)
+
             img_record = self.repo.add_image(
                 run_id=run.id,
                 original_path=str(item.path),
                 working_path=str(item.path),
-                station_id=item.station_id,
+                station_id=station_id,
                 captured_at=item.captured_at,
-                latitude=item.latitude,
-                longitude=item.longitude,
+                latitude=latitude,
+                longitude=longitude,
                 file_size_bytes=item.file_size_bytes,
                 status="processing",
             )
 
-            if item.station_id and item.latitude and item.longitude:
+            if station_id and latitude and longitude:
                 self.repo.upsert_station(
-                    item.station_id,
-                    item.latitude,
-                    item.longitude,
+                    station_id,
+                    latitude,
+                    longitude,
                 )
 
             blank_result = classify_blank(item.path)
@@ -136,10 +175,10 @@ class TigerTrackingPipeline:
                     tiger_id=decision.tiger_id,
                     image_id=img_record.id,
                     run_id=run.id,
-                    station_id=item.station_id,
+                    station_id=station_id,
                     captured_at=item.captured_at,
-                    latitude=item.latitude,
-                    longitude=item.longitude,
+                    latitude=latitude,
+                    longitude=longitude,
                     confidence=decision.confidence,
                     match_type="auto",
                 )
@@ -157,10 +196,10 @@ class TigerTrackingPipeline:
                     tiger_id=tiger_id,
                     image_id=img_record.id,
                     run_id=run.id,
-                    station_id=item.station_id,
+                    station_id=station_id,
                     captured_at=item.captured_at,
-                    latitude=item.latitude,
-                    longitude=item.longitude,
+                    latitude=latitude,
+                    longitude=longitude,
                     confidence=decision.confidence,
                     match_type="enroll",
                 )
