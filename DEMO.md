@@ -30,6 +30,7 @@ streamlit run present.py
 | **ii** | Tiger ID via stripes + DB | MiewID + `data/tiger_tracking.db` | Show tiger catalogue + review queue |
 | **iii** | Occupancy map + exports | `data/exports/run_*/` | Open `occupancy_map.html` |
 | **iv** | Deviation alerts | Dashboard → Alerts tab | Run pipeline twice, show alerts |
+| **+** | Forest dept handover | `src/integrations/mstripes.py` | Dashboard → Forest Dept Export → build bundle, open `alerts.gpx` on a phone |
 
 ---
 

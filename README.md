@@ -104,6 +104,7 @@ Raw Images → Blank Filter (MegaDetector) → Quarantine (reversible)
 | GET | `/api/v1/runs/{id}/occupancy` | Occupancy data for a run |
 | GET | `/api/v1/runs/{id}/alerts` | Alerts for a run |
 | GET | `/api/v1/exports/{id}/map` | Download occupancy map HTML |
+| GET | `/api/v1/exports/{id}/mstripes` | Download M-STrIPES-aligned bundle (zip) |
 | POST | `/api/v1/quarantine/restore/{id}` | Restore quarantined blanks |
 
 ## Configuration
@@ -147,6 +148,7 @@ Zones: `core`, `buffer`, `village_adjacent`
 
 ```
 src/
+├── integrations/      # M-STrIPES-aligned forest department export
 ├── ml/                # MegaDetector + MiewID model registry
 ├── pipeline/          # ingest, blank filter, detect/crop, orchestrator
 ├── matching/          # MiewID embedding matcher, catalogue, review queue
@@ -182,6 +184,36 @@ Generated in `data/exports/run_{id}/`:
 - `home_ranges.geojson` — GIS-compatible home ranges
 - `occupancy_report.csv` — tabular summary
 - `territorial_overlaps.json` — overlap between individuals
+- `mstripes/` — M-STrIPES-aligned bundle (see below)
+
+## M-STrIPES-aligned export
+
+`data/exports/run_{id}/mstripes/` holds the camera-trap data in the Phase IV
+layout the M-STrIPES ecological module is built around. It is **not** an
+officially certified M-STrIPES import bundle — no public import schema exists.
+Column names live in `DEPLOYMENT_COLUMNS` / `CAPTURE_COLUMNS` in
+`src/integrations/mstripes.py` and can be remapped in one place once a real
+departmental sheet is available.
+
+| File | Contents |
+|------|----------|
+| `camera_deployment.csv` | One row per trap: coordinates, zone, effort dates, trap nights |
+| `capture_records.csv` | One row per identified capture: trap, timestamp, individual ID, confidence |
+| `capture_history.csv` | Individuals × sampling occasions (0/1) — SECR / CAPTURE / MARK input |
+| `trap_effort.csv` | Traps × occasions (1 = camera active) |
+| `population_summary.csv` | Minimum count, trap nights, recapture rate, Chapman-corrected Lincoln-Petersen estimate |
+| `alerts.gpx` | Alerts, waterholes and village-interface stations as GPX waypoints for a ranger handset |
+| `README_MSTRIPES.txt` / `manifest.json` | Definitions used, and the fields the pipeline cannot derive |
+
+Definitions: a **sampling occasion** is one calendar day between the first and
+last capture; a trap counts as **active** on a day if any frame from it carries
+that date, blanks included, since a blank frame still proves the camera ran.
+Capture history spans the whole database, not one run — capture-recapture needs
+the full survey block.
+
+`Flank`, `Sex`, `AgeClass` and `CameraMake` are exported as `U`/blank rather
+than guessed. Optional `range_name`, `beat` and `compartment` columns in the
+station registry CSV are carried through when present.
 
 ## License
 

@@ -11,6 +11,7 @@ from src.alerts.deviation import AlertEngine
 from src.config import app_config, ensure_data_dirs
 from src.db.models import get_session, init_db
 from src.db.repository import Repository
+from src.integrations.mstripes import export_mstripes_bundle
 from src.matching.catalogue import TigerCatalogue
 from src.occupancy.home_range import compute_occupancy, compute_overlap_pct
 from src.occupancy.map_export import export_csv_report, export_geojson_bundle, generate_occupancy_map
@@ -93,6 +94,9 @@ class TigerTrackingPipeline:
                 is_village_adjacent=attrs["is_village_adjacent"],
                 is_sensitive=attrs["is_sensitive"],
                 is_waterhole=attrs["is_waterhole"],
+                range_name=attrs["range_name"],
+                beat=attrs["beat"],
+                compartment=attrs["compartment"],
             )
 
         for item in ingested:
@@ -328,11 +332,14 @@ class TigerTrackingPipeline:
         with open(overlap_path, "w") as f:
             json.dump(overlap_pairs, f, indent=2)
 
+        mstripes = export_mstripes_bundle(self.repo, run_id, exports_dir / "mstripes")
+
         return {
             "map": str(map_path),
             "geojson": str(geojson_path),
             "csv": str(csv_path),
             "overlaps": str(overlap_path),
+            "mstripes": str(mstripes.directory),
         }
 
     def close(self):

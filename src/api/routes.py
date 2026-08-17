@@ -235,6 +235,24 @@ def download_map(run_id: int):
     return FileResponse(map_path, media_type="text/html", filename=f"occupancy_map_run_{run_id}.html")
 
 
+@router.get("/exports/{run_id}/mstripes")
+def download_mstripes(run_id: int):
+    """M-STrIPES-aligned bundle for a run, zipped."""
+    import shutil
+    from src.config import settings
+
+    bundle_dir = settings.data_dir / "exports" / f"run_{run_id}" / "mstripes"
+    if not bundle_dir.exists():
+        raise HTTPException(404, "M-STrIPES bundle not found for this run")
+
+    archive = shutil.make_archive(str(bundle_dir), "zip", root_dir=bundle_dir)
+    return FileResponse(
+        archive,
+        media_type="application/zip",
+        filename=f"mstripes_run_{run_id}.zip",
+    )
+
+
 @router.post("/quarantine/restore/{run_id}")
 def restore_quarantined(run_id: int):
     """Restore all blank-quarantined images from a run back to raw directory."""

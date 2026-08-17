@@ -21,3 +21,4 @@ data/tigers.zip
 .DS_Store
 .pytest_cache/
 .mypy_cache/
+.codegraph/

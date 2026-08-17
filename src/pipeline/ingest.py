@@ -175,6 +175,10 @@ def load_station_tags(registry_path: Path | None) -> dict[str, dict]:
                 "is_sensitive": (row.get("is_sensitive") or "").strip().lower() in _TRUTHY
                 or zone == "village_adjacent",
                 "is_waterhole": (row.get("is_waterhole") or "").strip().lower() in _TRUTHY,
+                # Optional administrative units — only the M-STrIPES export needs them.
+                "range_name": (row.get("range_name") or row.get("range") or "").strip() or None,
+                "beat": (row.get("beat") or "").strip() or None,
+                "compartment": (row.get("compartment") or "").strip() or None,
             }
     return tags
 
