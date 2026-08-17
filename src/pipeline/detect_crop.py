@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,6 +22,7 @@ class DetectionResult:
     flank_bbox: tuple[int, int, int, int] | None
     flank_path: Path | None
     reason: str
+    animal_count: int = 0  # animals above threshold in the frame (co-occurrence signal)
 
 
 def _detect_subject_bbox_heuristic(gray: np.ndarray) -> tuple[tuple[int, int, int, int] | None, float]:
@@ -63,14 +65,25 @@ def _extract_flank_bbox(bbox: tuple[int, int, int, int], img_shape: tuple[int, i
     return fx, fy, fw, fh
 
 
-def _crop_and_save_flank(img: np.ndarray, flank_bbox: tuple[int, int, int, int], output_dir: Path, image_id: int) -> Path | None:
+def _crop_and_save_flank(
+    img: np.ndarray,
+    flank_bbox: tuple[int, int, int, int],
+    output_dir: Path,
+    image_id: int,
+    source_stem: str = "",
+) -> Path | None:
     fx, fy, fw, fh = flank_bbox
     if fw < 20 or fh < 20:
         return None
 
     flank = img[fy : fy + fh, fx : fx + fw]
     output_dir.mkdir(parents=True, exist_ok=True)
-    flank_path = output_dir / f"flank_{image_id}.jpg"
+    # The source stem is carried into the crop name so the no-ML mock matcher,
+    # which reads filenames, can still group frames of the same individual.
+    # The image id keeps the name unique regardless of source collisions.
+    safe_stem = re.sub(r"[^A-Za-z0-9_.-]", "_", source_stem)[:80]
+    suffix = f"{safe_stem}__flank{image_id}" if safe_stem else f"flank_{image_id}"
+    flank_path = output_dir / f"{suffix}.jpg"
     cv2.imwrite(str(flank_path), flank)
     return flank_path
 
@@ -107,6 +120,7 @@ def detect_and_crop(path: Path, output_dir: Path, image_id: int) -> DetectionRes
 
         bbox = best.bbox
         confidence = best.confidence
+        animal_count = sum(1 for d in detections if d.category == "animal")
         reason = "animal_detected"
     else:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -120,10 +134,11 @@ def detect_and_crop(path: Path, output_dir: Path, image_id: int) -> DetectionRes
                 flank_path=None,
                 reason="no_subject_detected",
             )
+        animal_count = 1
         reason = "subject_detected_heuristic"
 
     flank_bbox = _extract_flank_bbox(bbox, img.shape[:2])
-    flank_path = _crop_and_save_flank(img, flank_bbox, output_dir, image_id)
+    flank_path = _crop_and_save_flank(img, flank_bbox, output_dir, image_id, path.stem)
 
     if flank_path is None:
         return DetectionResult(
@@ -142,4 +157,5 @@ def detect_and_crop(path: Path, output_dir: Path, image_id: int) -> DetectionRes
         flank_bbox=flank_bbox,
         flank_path=flank_path,
         reason=reason,
+        animal_count=animal_count,
     )

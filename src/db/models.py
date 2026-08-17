@@ -65,6 +65,9 @@ class ImageRecord(Base):
     tiger_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     file_size_bytes: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(32), default="pending")
+    bbox_json: Mapped[str | None] = mapped_column(Text, nullable=True)   # [x, y, w, h] body box
+    animal_count: Mapped[int] = mapped_column(Integer, default=0)        # animals above threshold
+    anomaly_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # per-frame anomaly signals
 
     run: Mapped[ProcessingRun | None] = relationship(back_populates="images")
     sightings: Mapped[list[Sighting]] = relationship(back_populates="image")
@@ -176,6 +179,8 @@ class Station(Base):
     longitude: Mapped[float] = mapped_column(Float)
     zone: Mapped[str] = mapped_column(String(32), default="core")
     is_village_adjacent: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_sensitive: Mapped[bool] = mapped_column(Boolean, default=False)   # village/livestock interface
+    is_waterhole: Mapped[bool] = mapped_column(Boolean, default=False)   # perennial water source
 
 
 engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
@@ -184,20 +189,42 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
-    _ensure_embedding_column()
+    _apply_column_migrations()
 
 
-def _ensure_embedding_column() -> None:
-    """Add embedding_json column to existing databases without a full migration."""
+# Columns added after the first release. SQLite has no ALTER-if-not-exists, so
+# they are patched onto existing databases here instead of via a migration tool.
+_ADDED_COLUMNS: dict[str, dict[str, str]] = {
+    "tiger_representatives": {"embedding_json": "TEXT"},
+    "images": {
+        "bbox_json": "TEXT",
+        "animal_count": "INTEGER DEFAULT 0",
+        "anomaly_json": "TEXT",
+    },
+    "stations": {
+        "is_sensitive": "BOOLEAN DEFAULT 0",
+        "is_waterhole": "BOOLEAN DEFAULT 0",
+    },
+}
+
+
+def _apply_column_migrations() -> None:
+    """Add newer columns to databases created by an older schema version."""
     from sqlalchemy import inspect, text
 
     inspector = inspect(engine)
-    if "tiger_representatives" not in inspector.get_table_names():
-        return
-    columns = {col["name"] for col in inspector.get_columns("tiger_representatives")}
-    if "embedding_json" not in columns:
+    existing_tables = set(inspector.get_table_names())
+
+    for table, columns in _ADDED_COLUMNS.items():
+        if table not in existing_tables:
+            continue
+        present = {col["name"] for col in inspector.get_columns(table)}
+        missing = {name: ddl for name, ddl in columns.items() if name not in present}
+        if not missing:
+            continue
         with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE tiger_representatives ADD COLUMN embedding_json TEXT"))
+            for name, ddl in missing.items():
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
             conn.commit()
 
 

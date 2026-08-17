@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from src.alerts.anomaly import AnomalyEngine, analyse_frame
 from src.alerts.deviation import AlertEngine
 from src.config import app_config, ensure_data_dirs
 from src.db.models import get_session, init_db
@@ -15,7 +16,7 @@ from src.occupancy.home_range import compute_occupancy, compute_overlap_pct
 from src.occupancy.map_export import export_csv_report, export_geojson_bundle, generate_occupancy_map
 from src.pipeline.blank_filter import classify_blank, estimate_time_saved_sec, quarantine_blank
 from src.pipeline.detect_crop import detect_and_crop
-from src.pipeline.ingest import ingest_directory, load_station_registry
+from src.pipeline.ingest import ingest_directory, load_station_registry, load_station_tags
 from src.ml.model_registry import ml_available, warmup_models
 
 
@@ -48,6 +49,7 @@ class PipelineReport:
     estimated_time_saved_sec: float = 0.0
     occupancy_count: int = 0
     alerts_raised: int = 0
+    anomalies_raised: int = 0
     exports: dict = field(default_factory=dict)
 
 
@@ -59,6 +61,7 @@ class TigerTrackingPipeline:
         self.repo = Repository(self.session)
         self.catalogue = TigerCatalogue(self.repo)
         self.alert_engine = AlertEngine(self.repo)
+        self.anomaly_engine = AnomalyEngine(self.repo)
 
     def run(
         self,
@@ -78,6 +81,19 @@ class TigerTrackingPipeline:
         station_registry_map = (
             load_station_registry(station_registry) if station_registry else {}
         )
+        # Seed every registered station up front so zone/waterhole/sensitive tags
+        # exist for alerting even at stations that recorded nothing this run.
+        for sid, attrs in load_station_tags(station_registry).items():
+            self.repo.upsert_station(
+                sid,
+                attrs["latitude"],
+                attrs["longitude"],
+                name=attrs["name"],
+                zone=attrs["zone"],
+                is_village_adjacent=attrs["is_village_adjacent"],
+                is_sensitive=attrs["is_sensitive"],
+                is_waterhole=attrs["is_waterhole"],
+            )
 
         for item in ingested:
             station_id = item.station_id
@@ -156,12 +172,18 @@ class TigerTrackingPipeline:
                 continue
 
             report.tiger_detected += 1
+            frame_anomaly = analyse_frame(
+                detection.flank_path, detection.bbox, detection.animal_count
+            )
             self.repo.update_image(
                 img_record,
                 has_tiger=True,
                 tiger_confidence=detection.confidence,
                 flank_path=str(detection.flank_path),
                 status="matched",
+                bbox_json=json.dumps(list(detection.bbox)) if detection.bbox else None,
+                animal_count=detection.animal_count,
+                anomaly_json=frame_anomaly.to_json(),
             )
 
             decision = self.catalogue.find_best_match(detection.flank_path)
@@ -210,7 +232,9 @@ class TigerTrackingPipeline:
         report.occupancy_count = len(occupancy_snapshots)
 
         alerts = self.alert_engine.run(run.id, occupancy_snapshots)
-        report.alerts_raised = len(alerts)
+        anomalies = self.anomaly_engine.run(run.id)
+        report.anomalies_raised = len(anomalies)
+        report.alerts_raised = len(alerts) + len(anomalies)
 
         report.exports = self._export_results(run.id, occupancy_snapshots)
 

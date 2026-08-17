@@ -13,6 +13,7 @@ data/processed/**
 !data/processed/.gitkeep
 data/exports/**
 !data/exports/.gitkeep
+reports/*.pdf
 data/tigers/
 data/tigers.zip
 *.zip

@@ -235,14 +235,26 @@ class Repository:
     def get_run(self, run_id: int) -> ProcessingRun | None:
         return self.session.get(ProcessingRun, run_id)
 
-    def stations_used_by_tiger(self, tiger_id: int) -> set[str]:
-        rows = (
-            self.session.query(Sighting.station_id)
-            .filter(Sighting.tiger_id == tiger_id, Sighting.station_id.isnot(None))
-            .distinct()
-            .all()
+    def stations_used_by_tiger(
+        self,
+        tiger_id: int,
+        run_id: int | None = None,
+        before_run_id: int | None = None,
+    ) -> set[str]:
+        """Stations an individual has used — optionally within, or before, a run.
+
+        `run_id` restricts to a single run; `before_run_id` gives the prior
+        history, which is what "first capture at this station" must compare
+        against (all-time history already contains the current run's captures).
+        """
+        q = self.session.query(Sighting.station_id).filter(
+            Sighting.tiger_id == tiger_id, Sighting.station_id.isnot(None)
         )
-        return {r[0] for r in rows if r[0]}
+        if run_id is not None:
+            q = q.filter(Sighting.run_id == run_id)
+        if before_run_id is not None:
+            q = q.filter(Sighting.run_id < before_run_id)
+        return {r[0] for r in q.distinct().all() if r[0]}
 
     def last_sighting_date(self, tiger_id: int) -> datetime | None:
         return (
@@ -258,6 +270,87 @@ class Repository:
             .order_by(desc(Sighting.captured_at), desc(Sighting.id))
             .first()
         )
+
+    # --- Queries backing the dashboard map, profiles and reports ---
+
+    def get_sightings_in_range(
+        self,
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> list[Sighting]:
+        """Sightings with GPS inside a date window (used by the map scrubber)."""
+        q = self.session.query(Sighting).filter(
+            Sighting.latitude.isnot(None), Sighting.longitude.isnot(None)
+        )
+        if start is not None:
+            q = q.filter(Sighting.captured_at >= start)
+        if end is not None:
+            q = q.filter(Sighting.captured_at <= end)
+        return q.order_by(Sighting.captured_at).all()
+
+    def sighting_date_bounds(self) -> tuple[datetime | None, datetime | None]:
+        row = self.session.query(
+            func.min(Sighting.captured_at), func.max(Sighting.captured_at)
+        ).one()
+        return row[0], row[1]
+
+    def get_alerts_for_tiger(self, tiger_id: int, since: datetime | None = None) -> list[Alert]:
+        q = self.session.query(Alert).filter(Alert.tiger_id == tiger_id)
+        if since is not None:
+            q = q.filter(Alert.created_at >= since)
+        return q.order_by(desc(Alert.created_at)).all()
+
+    def get_images_for_tiger(self, tiger_id: int) -> list[ImageRecord]:
+        """Every frame a tiger was identified in, newest first."""
+        return (
+            self.session.query(ImageRecord)
+            .join(Sighting, Sighting.image_id == ImageRecord.id)
+            .filter(Sighting.tiger_id == tiger_id)
+            .order_by(desc(Sighting.captured_at))
+            .all()
+        )
+
+    def get_sightings_for_run(self, run_id: int) -> list[Sighting]:
+        return self.session.query(Sighting).filter(Sighting.run_id == run_id).all()
+
+    def get_images_for_run(self, run_id: int) -> list[ImageRecord]:
+        return self.session.query(ImageRecord).filter(ImageRecord.run_id == run_id).all()
+
+    def get_image(self, image_id: int) -> ImageRecord | None:
+        return self.session.get(ImageRecord, image_id)
+
+    def sightings_at_station(
+        self,
+        station_id: str,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> list[Sighting]:
+        q = self.session.query(Sighting).filter(Sighting.station_id == station_id)
+        if since is not None:
+            q = q.filter(Sighting.captured_at >= since)
+        if until is not None:
+            q = q.filter(Sighting.captured_at <= until)
+        return q.order_by(Sighting.captured_at).all()
+
+    def count_totals(self) -> dict:
+        """Headline counters for the dashboard and report cover page."""
+        return {
+            "tigers": self.session.query(func.count(Tiger.id))
+            .filter(Tiger.is_active.is_(True))
+            .scalar()
+            or 0,
+            "sightings": self.session.query(func.count(Sighting.id)).scalar() or 0,
+            "images": self.session.query(func.count(ImageRecord.id)).scalar() or 0,
+            "blanks": self.session.query(func.count(ImageRecord.id))
+            .filter(ImageRecord.is_blank.is_(True))
+            .scalar()
+            or 0,
+            "alerts": self.session.query(func.count(Alert.id)).scalar() or 0,
+            "pending_reviews": self.session.query(func.count(MatchReview.id))
+            .filter(MatchReview.status == "pending")
+            .scalar()
+            or 0,
+        }
 
     def dump_evidence(self, data: dict) -> str:
         return json.dumps(data, default=str)

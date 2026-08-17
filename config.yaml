@@ -22,6 +22,20 @@ alerts:
   absence_days_threshold: 30
   buffer_station_proximity_km: 2.0
 
+anomaly:
+  enabled: true
+  min_frames: 2
+  injured_aspect_min: 1.15
+  injured_aspect_max: 3.40
+  blood_pixel_fraction: 0.04
+  mating_window_hours: 6.0
+  water_lookback_days: 30
+  water_sigma: 2.0
+
+report:
+  output_dir: "reports"
+  top_alerts: 10
+
 occupancy:
   home_range_method: convex_hull
   min_points_for_range: 3

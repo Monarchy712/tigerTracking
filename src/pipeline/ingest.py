@@ -84,19 +84,37 @@ def _normalize_station_id(raw: str | None) -> str | None:
     return raw.upper()
 
 
-def _parse_filename_metadata(path: Path) -> tuple[str | None, datetime | None]:
+def _match_known_station(name: str, known_ids) -> str | None:
+    """Find a registered station id inside a filename, longest id first.
+
+    Reserves use their own prefixes (CAM01, PEN03, ...), so matching against the
+    registry is more reliable than any single hard-coded pattern.
+    """
+    for sid in sorted(known_ids, key=len, reverse=True):
+        if re.search(rf"(?<![A-Za-z0-9]){re.escape(sid)}(?![A-Za-z0-9])", name, re.I):
+            return sid
+    return None
+
+
+def _parse_filename_metadata(
+    path: Path, known_station_ids=None
+) -> tuple[str | None, datetime | None]:
     """Parse station and timestamp from common camera-trap naming patterns."""
     name = path.stem
     station_id = None
     captured_at = None
 
-    station_match = re.search(r"(?:station|cam|st)[_-]?(CAM\d+)", name, re.I)
-    if station_match:
-        station_id = station_match.group(1).upper()
-    else:
-        cam_only = re.search(r"(CAM\d+)", name, re.I)
-        if cam_only:
-            station_id = cam_only.group(1).upper()
+    if known_station_ids:
+        station_id = _match_known_station(name, known_station_ids)
+
+    if not station_id:
+        station_match = re.search(r"(?:station|cam|st)[_-]?(CAM\d+)", name, re.I)
+        if station_match:
+            station_id = station_match.group(1).upper()
+        else:
+            cam_only = re.search(r"(CAM\d+)", name, re.I)
+            if cam_only:
+                station_id = cam_only.group(1).upper()
 
     ts_match = re.search(r"(\d{8})[_-]?(\d{6})?", name)
     if ts_match:
@@ -129,6 +147,38 @@ def load_station_registry(registry_path: Path | None) -> dict[str, tuple[float, 
     return registry
 
 
+_TRUTHY = {"1", "true", "yes", "y", "t"}
+
+
+def load_station_tags(registry_path: Path | None) -> dict[str, dict]:
+    """Load the full station row, including optional `is_sensitive` / `is_waterhole` tags.
+
+    `load_station_registry` stays coordinate-only for existing callers; the tags
+    drive village-proximity and waterhole-stress alerting.
+    """
+    if not registry_path or not registry_path.exists():
+        return {}
+
+    tags: dict[str, dict] = {}
+    with open(registry_path, newline="") as f:
+        for row in csv.DictReader(f):
+            sid = row.get("station_id") or row.get("id")
+            if not sid:
+                continue
+            zone = row.get("zone", "core")
+            tags[sid] = {
+                "name": row.get("name") or None,
+                "latitude": float(row["latitude"]),
+                "longitude": float(row["longitude"]),
+                "zone": zone,
+                "is_village_adjacent": zone == "village_adjacent",
+                "is_sensitive": (row.get("is_sensitive") or "").strip().lower() in _TRUTHY
+                or zone == "village_adjacent",
+                "is_waterhole": (row.get("is_waterhole") or "").strip().lower() in _TRUTHY,
+            }
+    return tags
+
+
 def discover_images(input_dir: Path, recursive: bool = True) -> list[Path]:
     if not input_dir.exists():
         raise FileNotFoundError(f"Input directory not found: {input_dir}")
@@ -144,12 +194,12 @@ def discover_images(input_dir: Path, recursive: bool = True) -> list[Path]:
 def ingest_image(path: Path, station_registry: dict | None = None) -> IngestedImage:
     station_registry = station_registry or {}
     captured_at, lat, lon = _extract_exif(path)
-    station_id, fn_time = _parse_filename_metadata(path)
+    station_id, fn_time = _parse_filename_metadata(path, station_registry.keys())
 
     if fn_time and not captured_at:
         captured_at = fn_time
 
-    if station_id:
+    if station_id and station_id not in station_registry:
         station_id = _normalize_station_id(station_id)
 
     if station_id and station_id in station_registry and (lat is None or lon is None):

@@ -42,6 +42,24 @@ class AlertsConfig(BaseModel):
     buffer_station_proximity_km: float = 2.0
 
 
+class AnomalyConfig(BaseModel):
+    """Visual/behavioural anomaly detection thresholds."""
+
+    enabled: bool = True
+    min_frames: int = 2               # an anomaly must recur before an alert fires
+    injured_aspect_min: float = 1.15  # body bbox w/h below this reads as crouched/limping
+    injured_aspect_max: float = 3.40  # above this reads as an elongated/dragging posture
+    blood_pixel_fraction: float = 0.04
+    mating_window_hours: float = 6.0
+    water_lookback_days: int = 30
+    water_sigma: float = 2.0
+
+
+class ReportConfig(BaseModel):
+    output_dir: str = "reports"
+    top_alerts: int = 10
+
+
 class OccupancyConfig(BaseModel):
     home_range_method: str = "convex_hull"
     min_points_for_range: int = 3
@@ -70,6 +88,8 @@ class AppConfig(BaseModel):
     blank_filter: BlankFilterConfig = Field(default_factory=BlankFilterConfig)
     matching: MatchingConfig = Field(default_factory=MatchingConfig)
     alerts: AlertsConfig = Field(default_factory=AlertsConfig)
+    anomaly: AnomalyConfig = Field(default_factory=AnomalyConfig)
+    report: ReportConfig = Field(default_factory=ReportConfig)
     occupancy: OccupancyConfig = Field(default_factory=OccupancyConfig)
     reserve: ReserveConfig = Field(default_factory=ReserveConfig)
 
@@ -106,6 +126,7 @@ def ensure_data_dirs() -> dict[str, Path]:
         "quarantine_blank": base / "quarantine" / "blank",
         "flanks": base / "processed" / "flanks",
         "exports": base / "exports",
+        "reports": ROOT_DIR / app_config.report.output_dir,
     }
     for d in dirs.values():
         d.mkdir(parents=True, exist_ok=True)
