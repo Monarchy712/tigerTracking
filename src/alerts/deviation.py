@@ -96,10 +96,14 @@ class AlertEngine:
 
     def _check_new_station(self, run_id: int, tiger, occ) -> list:
         alerts = []
-        historical = self.repo.stations_used_by_tiger(tiger.id)
-        current_stations = set()
-        if occ.station_ids:
-            current_stations = {s.strip() for s in occ.station_ids.split(",") if s.strip()}
+        # The occupancy snapshot covers the individual's whole history, which by
+        # this point already includes the current run — so both sides are read
+        # per-run instead, otherwise nothing is ever "new".
+        historical = self.repo.stations_used_by_tiger(tiger.id, before_run_id=run_id)
+        current_stations = self.repo.stations_used_by_tiger(tiger.id, run_id=run_id)
+
+        if not historical:
+            return alerts  # first survey for this individual: nothing to compare
 
         new_stations = current_stations - historical
         for sid in new_stations:
@@ -125,13 +129,9 @@ class AlertEngine:
 
     def _check_buffer_proximity(self, run_id: int, tiger, occ) -> list:
         alerts = []
-        if not occ.station_ids:
-            return alerts
-
-        for sid in occ.station_ids.split(","):
-            sid = sid.strip()
-            if not sid:
-                continue
+        # Restricted to this run so a single old buffer capture does not re-alert
+        # on every subsequent survey.
+        for sid in sorted(self.repo.stations_used_by_tiger(tiger.id, run_id=run_id)):
             st = self.repo.get_station(sid)
             if not st:
                 continue
@@ -142,7 +142,7 @@ class AlertEngine:
                     alert_type="buffer_movement",
                     severity="high" if st.is_village_adjacent else "medium",
                     confidence=0.88,
-                    title=f"{tiger.tiger_code}: Movement into {st.zone} zone",
+                    title=f"{tiger.tiger_code}: Movement into {st.zone} zone at {sid}",
                     description=(
                         f"Tiger captured at station {sid} in {st.zone} zone"
                         + (" (village-adjacent)" if st.is_village_adjacent else "")

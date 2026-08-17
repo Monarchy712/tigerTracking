@@ -1,0 +1,11 @@
+station_id,name,latitude,longitude,zone,is_sensitive,is_waterhole
+PEN01,Alikatta North,21.785,79.31,core,false,false
+PEN02,Chhindimatta,21.778,79.325,core,false,false
+PEN03,Pipariya Nala,21.765,79.335,core,false,true
+PEN04,Bodhanala Ridge,21.758,79.318,core,false,false
+PEN05,Karmajhiri Buffer,21.752,79.34,buffer,false,false
+PEN06,Turia Gate,21.745,79.305,buffer,true,false
+PEN07,Sillari Village Edge,21.738,79.328,village_adjacent,true,false
+PEN08,Totladoh Backwater,21.792,79.345,core,false,false
+PEN09,Rukhad Corridor,21.8,79.3,core,false,false
+PEN10,Khawasa South Beat,21.61,79.33,buffer,false,false

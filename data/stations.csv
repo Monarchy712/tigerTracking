@@ -1,7 +1,7 @@
-station_id,latitude,longitude,zone
-CAM01,23.71,81.025,core
-CAM02,23.705,81.04,core
-CAM03,23.69,81.05,core
-CAM04,23.68,81.03,buffer
-CAM05,23.675,81.015,buffer
-CAM06,23.668,81.005,village_adjacent
+station_id,name,latitude,longitude,zone,is_sensitive,is_waterhole
+CAM01,Tala Ridge,23.710,81.025,core,false,false
+CAM02,Magdhi Meadow,23.705,81.040,core,false,false
+CAM03,Charanganga Nala,23.690,81.050,core,false,true
+CAM04,Khitauli Buffer,23.680,81.030,buffer,false,false
+CAM05,Damokhar Buffer,23.675,81.015,buffer,true,false
+CAM06,Rancha Village Edge,23.668,81.005,village_adjacent,true,false
