@@ -1,0 +1,34 @@
+models:
+  enabled: true
+  megadetector_threshold: 0.20
+  miewid_model: "conservationxlabs/miewid-msv3"
+  device: "cpu"
+
+blank_filter:
+  mode: hybrid
+  confidence_threshold: 0.75
+  variance_threshold: 120.0
+  edge_density_threshold: 0.015
+
+matching:
+  auto_match_threshold: 0.85
+  review_threshold: 0.60
+  max_representatives_per_tiger: 3
+
+alerts:
+  core_range_shift_sqkm: 17.5
+  buffer_range_shift_km: 5.0
+  absence_days_threshold: 30
+  buffer_station_proximity_km: 2.0
+
+occupancy:
+  home_range_method: convex_hull
+  min_points_for_range: 3
+  overlap_threshold_pct: 10.0
+
+reserve:
+  name: "Bandhavgarh Tiger Reserve"
+  center_lat: 23.697
+  center_lon: 81.032
+  core_boundary_file: null
+  buffer_boundary_file: null

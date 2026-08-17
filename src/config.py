@@ -1,0 +1,102 @@
+"""Application configuration loaded from config.yaml and environment."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import Any
+
+import yaml
+from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings
+
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+
+
+class ModelsConfig(BaseModel):
+    enabled: bool = True
+    megadetector_threshold: float = 0.20
+    miewid_model: str = "conservationxlabs/miewid-msv3"
+    device: str = "cpu"
+
+
+class BlankFilterConfig(BaseModel):
+    mode: str = "hybrid"  # heuristic | megadetector | hybrid
+    confidence_threshold: float = 0.75
+    variance_threshold: float = 120.0
+    edge_density_threshold: float = 0.015
+
+
+class MatchingConfig(BaseModel):
+    auto_match_threshold: float = 0.85
+    review_threshold: float = 0.60
+    max_representatives_per_tiger: int = 3
+
+
+class AlertsConfig(BaseModel):
+    core_range_shift_sqkm: float = 17.5
+    buffer_range_shift_km: float = 5.0
+    absence_days_threshold: int = 30
+    buffer_station_proximity_km: float = 2.0
+
+
+class OccupancyConfig(BaseModel):
+    home_range_method: str = "convex_hull"
+    min_points_for_range: int = 3
+    overlap_threshold_pct: float = 10.0
+
+
+class ReserveConfig(BaseModel):
+    name: str = "Bandhavgarh Tiger Reserve"
+    center_lat: float = 23.697
+    center_lon: float = 81.032
+    core_boundary_file: str | None = None
+    buffer_boundary_file: str | None = None
+
+
+class AppConfig(BaseModel):
+    models: ModelsConfig = Field(default_factory=ModelsConfig)
+    blank_filter: BlankFilterConfig = Field(default_factory=BlankFilterConfig)
+    matching: MatchingConfig = Field(default_factory=MatchingConfig)
+    alerts: AlertsConfig = Field(default_factory=AlertsConfig)
+    occupancy: OccupancyConfig = Field(default_factory=OccupancyConfig)
+    reserve: ReserveConfig = Field(default_factory=ReserveConfig)
+
+
+class Settings(BaseSettings):
+    database_url: str = f"sqlite:///{ROOT_DIR / 'data' / 'tiger_tracking.db'}"
+    friend_model_url: str = "http://localhost:8001/compare"
+    friend_model_mock: bool = False
+    use_ml_models: bool = True
+    data_dir: Path = ROOT_DIR / "data"
+
+    class Config:
+        env_file = ROOT_DIR / ".env"
+        extra = "ignore"
+
+
+def load_config(config_path: Path | None = None) -> AppConfig:
+    path = config_path or ROOT_DIR / "config.yaml"
+    if not path.exists():
+        return AppConfig()
+    with open(path) as f:
+        raw: dict[str, Any] = yaml.safe_load(f) or {}
+    return AppConfig(**raw)
+
+
+settings = Settings()
+app_config = load_config()
+
+
+def ensure_data_dirs() -> dict[str, Path]:
+    base = settings.data_dir
+    dirs = {
+        "raw": base / "raw",
+        "quarantine_blank": base / "quarantine" / "blank",
+        "flanks": base / "processed" / "flanks",
+        "exports": base / "exports",
+    }
+    for d in dirs.values():
+        d.mkdir(parents=True, exist_ok=True)
+    return dirs
