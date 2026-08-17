@@ -106,7 +106,9 @@ Trap active         A station is counted as active on a day if any frame from
                     camera was running.
 Trap night          One active station-day.
 Capture history     Scoped to the whole database, not a single run: capture-
-                    recapture analysis needs the full survey block.
+                    recapture analysis needs the full survey block. The capture,
+                    deployment and effort sheets share that scope; only
+                    alerts.gpx is filtered to this run.
 
 FIELDS NOT DERIVED BY THE PIPELINE
 ----------------------------------
