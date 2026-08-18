@@ -181,6 +181,10 @@ class Station(Base):
     is_village_adjacent: Mapped[bool] = mapped_column(Boolean, default=False)
     is_sensitive: Mapped[bool] = mapped_column(Boolean, default=False)   # village/livestock interface
     is_waterhole: Mapped[bool] = mapped_column(Boolean, default=False)   # perennial water source
+    # Forest-department administrative units, carried through to M-STrIPES exports.
+    range_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    beat: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    compartment: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
@@ -204,6 +208,9 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "stations": {
         "is_sensitive": "BOOLEAN DEFAULT 0",
         "is_waterhole": "BOOLEAN DEFAULT 0",
+        "range_name": "VARCHAR(128)",
+        "beat": "VARCHAR(128)",
+        "compartment": "VARCHAR(64)",
     },
 }
 

@@ -319,6 +319,19 @@ class Repository:
     def get_image(self, image_id: int) -> ImageRecord | None:
         return self.session.get(ImageRecord, image_id)
 
+    def station_frame_days(self) -> list[tuple[str, datetime]]:
+        """(station_id, captured_at) for every frame that reached the pipeline.
+
+        Blanks are included on purpose: a blank frame still proves the camera
+        was running that day, which is what trap-night effort counts.
+        """
+        return (
+            self.session.query(ImageRecord.station_id, ImageRecord.captured_at)
+            .filter(ImageRecord.station_id.isnot(None), ImageRecord.captured_at.isnot(None))
+            .distinct()
+            .all()
+        )
+
     def sightings_at_station(
         self,
         station_id: str,

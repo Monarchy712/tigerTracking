@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from src.config import app_config, settings
 from src.db.models import ImageRecord, get_session, init_db
 from src.db.repository import Repository
+from src.integrations.mstripes import compute_population_summary, export_mstripes_bundle
 from src.matching.catalogue import TigerCatalogue
 from src.matching.review_queue import ReviewQueue
 from src.occupancy.live_map import build_map, sightings_to_rows, territories_from_rows
@@ -178,8 +179,8 @@ version = data_version()
 repo = get_repo()
 totals = repo.count_totals()
 
-tab_dashboard, tab_map, tab_tigers, tab_review, tab_alerts = st.tabs(
-    ["Dashboard", "Map", "Tigers", "Review Queue", "Alerts"]
+tab_dashboard, tab_map, tab_tigers, tab_review, tab_alerts, tab_export = st.tabs(
+    ["Dashboard", "Map", "Tigers", "Review Queue", "Alerts", "Forest Dept Export"]
 )
 
 # --------------------------------------------------------------------------
@@ -510,3 +511,59 @@ with tab_alerts:
         for alert in filtered:
             render_alert(alert, repo)
             st.divider()
+
+
+# --------------------------------------------------------------------------
+# Forest department export (M-STrIPES-aligned)
+# --------------------------------------------------------------------------
+
+with tab_export:
+    st.header("M-STrIPES-aligned export")
+    st.caption(
+        "Phase IV camera-trap data layout: deployment and capture sheets, the "
+        "capture-history and trap-effort matrices used for density estimation, "
+        "and patrol waypoints as GPX. Not an officially certified M-STrIPES "
+        "import bundle — no public import schema exists."
+    )
+
+    pop_summary = compute_population_summary(repo)
+    s1, s2, s3, s4 = st.columns(4)
+    s1.metric("Minimum count", pop_summary["individuals_min_count"])
+    s2.metric("Trap nights", pop_summary["trap_nights"])
+    s3.metric("Sampling occasions", pop_summary["sampling_occasions"])
+    s4.metric("Population estimate", pop_summary.get("population_estimate", "—"))
+    st.caption(
+        f"Recaptured individuals: {pop_summary.get('recaptured_individuals', 0)} · "
+        f"Captures per 100 trap nights: {pop_summary['captures_per_100_trap_nights']} · "
+        f"Estimator: {pop_summary['estimator']}"
+    )
+
+    if not runs:
+        st.info("Run the pipeline first — the export needs a processing run.")
+    else:
+        chosen_export_run = st.selectbox(
+            "Run", [f"Run #{r.id}" for r in runs], key="mstripes_run"
+        )
+        export_run_id = int(chosen_export_run.split("#")[1])
+
+        if st.button("Build export bundle", type="primary"):
+            import shutil
+
+            bundle_dir = settings.data_dir / "exports" / f"run_{export_run_id}" / "mstripes"
+            bundle = export_mstripes_bundle(repo, export_run_id, bundle_dir)
+            archive = shutil.make_archive(str(bundle_dir), "zip", root_dir=bundle_dir)
+            st.session_state["mstripes_archive"] = archive
+            st.success(f"Wrote {len(bundle.files)} files to {bundle.directory}")
+
+        archive = st.session_state.get("mstripes_archive")
+        if archive and Path(archive).exists():
+            st.download_button(
+                "Download bundle (.zip)",
+                data=Path(archive).read_bytes(),
+                file_name=f"mstripes_run_{export_run_id}.zip",
+                mime="application/zip",
+            )
+            preview = Path(archive).with_suffix("") / "capture_records.csv"
+            if preview.exists():
+                st.subheader("capture_records.csv")
+                st.dataframe(pd.read_csv(preview).head(20), use_container_width=True)
